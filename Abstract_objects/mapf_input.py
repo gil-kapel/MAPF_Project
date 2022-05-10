@@ -1,11 +1,9 @@
 from abc import ABC, abstractmethod
-
-from low_level_search import LowLevelSearch
-from . import MapfInstance, LLSInput
+from . import MapfInstance, WayPoint
 
 
 class MAPFInput(ABC):
-    def __init__(self, map_instance: MapfInstance, starts_list, goals_list):
+    def __init__(self, map_instance: MapfInstance, starts_list: list[WayPoint], goals_list: list[WayPoint]):
         self.map_instance = map_instance
         self.starts_list = starts_list
         self.goals_list = goals_list

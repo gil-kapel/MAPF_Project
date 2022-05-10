@@ -1,14 +1,14 @@
 import time as timer
 from abc import ABC
 import heapq
-from Abstract_objects import MAPFAlgo, MAPFOutput, WayPoint, MAPFTime, MAPFInput, Path, LLSInput
+from Abstract_objects import MAPFAlgo, MAPFOutput, WayPoint, MapfInstance, MAPFInput, Path, LLSInput
 import copy
 import numpy as np
 from MAPF_exceptions import NoSolution
 
 
 class Collision(ABC):
-    def __init__(self, agent1: int, agent2: int, time_step: MAPFTime,  position: WayPoint, sec_vertex_pos=None):
+    def __init__(self, agent1: int, agent2: int, time_step: int,  position: WayPoint, sec_vertex_pos=None):
         self.agent1 = agent1
         self.agent2 = agent2
         self.time_step = time_step
@@ -24,7 +24,7 @@ class Collision(ABC):
 
 
 class Constraint(ABC):
-    def __init__(self, agent: int, time_step: MAPFTime, position: WayPoint, sec_vertex_pos=None):
+    def __init__(self, agent: int, time_step: int, position: WayPoint, sec_vertex_pos=None):
         self.agent = agent
         self.time_step = time_step
         self.position = position
@@ -79,11 +79,11 @@ class HighLevelNode(ABC):
     def detect_collision(self, path1: Path, path2: Path):
         for t, loc in enumerate(path1.path):
             if self.get_location(path1.path, t) == self.get_location(path2.path, t):
-                collision = Collision(path1.agent, path2.agent, MAPFTime(t), self.get_location(path1.path, t))
+                collision = Collision(path1.agent, path2.agent, t, self.get_location(path1.path, t))
                 return collision
             elif self.get_location(path1.path, t) == self.get_location(path2.path, t + 1) and \
                     self.get_location(path1.path, t + 1) == self.get_location(path2.path, t):
-                collision = Collision(path1.agent, path2.agent, MAPFTime(t + 1), self.get_location(path1.path, t),
+                collision = Collision(path1.agent, path2.agent, t + 1, self.get_location(path1.path, t),
                                       self.get_location(path1.path, t + 1))
                 return collision
         return None
@@ -130,11 +130,26 @@ class HighLevelNode(ABC):
         return constraints
 
 
+class CBSInput(MAPFInput):
+    def __init__(self, map_instance: MapfInstance, starts_list, goals_list):
+        super().__init__(map_instance, starts_list, goals_list)
+
+    def validate_input(self):
+        pass
+        # TODO
+
+
 class CBSSolver(MAPFAlgo):
     """CBS high-level search."""
-    def __init__(self, attr: MAPFInput):
-        super().__init__(mapf_input)
+    def __init__(self, attributes):
+        # M.a.p.f input must include: map, starts_list, goals_list, low_level_search algo
+        self.low_level_search = attributes.low_level_search
         self.open_list = []
+        self.start_time = 0
+        self.num_of_generated = 0
+        self.num_of_expanded = 0
+        self.CPU_time = 0
+        super().__init__(attributes)
 
     def push_node(self, node):
         heapq.heappush(self.open_list, node)

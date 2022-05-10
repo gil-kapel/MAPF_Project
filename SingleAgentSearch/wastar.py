@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 import numpy as np
 from heapq import heappush, heappop
-from Abstract_objects import WayPoint
+from Abstract_objects import WayPoint, LowLevelSearch, LLSInput
 
 
 class State(ABC):
@@ -40,17 +40,17 @@ class StateDict(dict):
         return state
 
 
-class LowLevelSearch(ABC):
-    def __init__(self, map_instance, start_loc, goal_loc, agent, constraints=None):
-        self.states = StateDict()
-        self.open_states = []
-        self.closed_states = []
-        self.map_instance = map_instance
-        self.start = State(start_loc, g_score=0)
-        self.goal = State(goal_loc)
-        self.agent = agent
+class AStarInput(LLSInput):
+    def __init__(self, map_instance, start_loc, goal_loc, agent, constraints, w=1):
+        super().__init__(map_instance, start_loc, goal_loc, agent)
         self.constraints = constraints
-        heappush(self.open_states, self.start)
+        self.w = w
+        # TODO
+
+
+class AStar(LowLevelSearch):
+    def __init__(self, w=1):
+        super().__init__(w)
 
     # Heuristic function for estimations
     @abstractmethod
@@ -87,7 +87,6 @@ class LowLevelSearch(ABC):
         return dict(time_step_dict)
 
     # search an optimal path for a specific agent
-    @abstractmethod
-    def search(self, max_iterations=int(2e5), debug=False):
+    def search(self, a_star_input: AStarInput):
         raise NotImplementedError
 
