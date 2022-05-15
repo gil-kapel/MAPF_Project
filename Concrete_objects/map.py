@@ -1,5 +1,5 @@
-from abc import ABC, abstractmethod
-from . import WayPoint
+from abc import ABC
+from Concrete_objects import WayPoint
 import numpy as np
 obstacles_inst = -1
 blank_space = 0
@@ -7,7 +7,7 @@ agents_position_inst = 1
 
 
 class MapfInstance(ABC):
-    # TODO add comments - why did i implemented it? / what is the pourpse
+    # TODO add comments - why did i implemented it? / what is the purpose
     def __init__(self, vertical_size: int, horizon_size: int, agents_pos: list[WayPoint], obstacles: list[WayPoint]):
         self.map = np.array(vertical_size * horizon_size)
         self.x_size = vertical_size

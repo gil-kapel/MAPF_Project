@@ -2,7 +2,19 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 import numpy as np
 from heapq import heappush, heappop
-from Abstract_objects import WayPoint, LowLevelSearch, LLSInput
+from Abstract_objects import LowLevelSearch, LLSInput
+from Concrete_objects import WayPoint, MapfInstance
+
+
+class AStarInput(LLSInput):
+    def __init__(self, map_instance: MapfInstance, start_loc: WayPoint, goal_loc: WayPoint, agent: int, constraints: Constraint, w=1):
+        super(AStarInput, self).__init__()
+        self.map_instance = map_instance
+        self.start_loc = start_loc
+        self.goal_loc = goal_loc
+        self.agent = agent
+        self.constraints = constraints
+        self.w = w
 
 
 class State(ABC):
@@ -38,14 +50,6 @@ class StateDict(dict):
         state = State(waypoint)
         self.__setitem__(waypoint, state)
         return state
-
-
-class AStarInput(LLSInput):
-    def __init__(self, map_instance, start_loc, goal_loc, agent, constraints, w=1):
-        super().__init__(map_instance, start_loc, goal_loc, agent)
-        self.constraints = constraints
-        self.w = w
-        # TODO
 
 
 class AStar(LowLevelSearch):

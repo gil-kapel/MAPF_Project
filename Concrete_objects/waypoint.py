@@ -1,5 +1,5 @@
-from abc import ABC, abstractmethod
-from . import Position
+from abc import ABC
+from Concrete_objects import Position
 # python -m pip install --upgrade --force-reinstall numpy-quaternion
 # import numpy as np
 # import quaternion

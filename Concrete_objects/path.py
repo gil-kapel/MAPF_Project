@@ -1,5 +1,5 @@
 from abc import ABC
-from . import WayPoint
+from Concrete_objects import WayPoint
 
 
 class Path(ABC):

@@ -1,36 +1,12 @@
 import time as timer
 from abc import ABC
 import heapq
-from Abstract_objects import MAPFAlgo, MAPFOutput, WayPoint, MapfInstance, MAPFInput, Path, LLSInput
+from Abstract_objects import MAPFAlgo, MAPFOutput, MAPFInput, LLSInput
+from Concrete_objects import WayPoint, MapfInstance, Path, Constraint, Collision
+
 import copy
 import numpy as np
 from MAPF_exceptions import NoSolution
-
-
-class Collision(ABC):
-    def __init__(self, agent1: int, agent2: int, time_step: int,  position: WayPoint, sec_vertex_pos=None):
-        self.agent1 = agent1
-        self.agent2 = agent2
-        self.time_step = time_step
-        self.position = position
-        self.sec_vertex_pos = sec_vertex_pos
-        self.is_edge_collision = False
-        if sec_vertex_pos:
-            self.is_edge_collision = True
-
-    def __eq__(self, other):
-        return self.agent1 == other.agent1 and self.agent2 == other.agent2 and self.time_step == other.time_step \
-               and self.position == other.position and self.sec_vertex_pos == other.sec_vertex_pos
-
-
-class Constraint(ABC):
-    def __init__(self, agent: int, time_step: int, position: WayPoint, sec_vertex_pos=None):
-        self.agent = agent
-        self.time_step = time_step
-        self.position = position
-        self.is_edge_constraint = False
-        if sec_vertex_pos:
-            self.is_edge_constraint = True
 
 
 class HighLevelNode(ABC):
