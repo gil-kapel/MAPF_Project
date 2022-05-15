@@ -35,13 +35,13 @@ class PrioritizedPlanningSolver(object):
             result.append(path)
             for t, loc in enumerate(path):
                 for agent in range(i+1, self.num_of_agents):
-                    constraints.append({'agent': agent, 'loc': [loc], 'timestep': t})
+                    constraints.append({'agent': agent, 'loc': [loc], 'time_step': t})
                     if t > 0:
-                        constraints.append({'agent': agent, 'loc': [path[t], path[t-1]], 'timestep': t})
+                        constraints.append({'agent': agent, 'loc': [path[t], path[t-1]], 'time_step': t})
                     if t == len(path) - 1:
                         board_area = len(self.my_map)*len(self.my_map)
                         for j in range(board_area):
-                            constraints.append({'agent': agent, 'loc': [path[t]], 'timestep': t + j})
+                            constraints.append({'agent': agent, 'loc': [path[t]], 'time_step': t + j})
             ##############################
             # Task 2: Add constraints here
             #         Useful variables:

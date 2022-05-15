@@ -1,23 +1,30 @@
 from abc import ABC, abstractmethod
-from . import MAPFOutput, MAPFInput
+from Concrete_objects import MapfInstance, WayPoint, Path
+
+
+class MAPFInput(ABC):
+    def __init__(self, map_instance: MapfInstance, starts_list: list[WayPoint], goals_list: list[WayPoint]):
+        self.map_instance = map_instance
+        self.starts_list = starts_list
+        self.goals_list = goals_list
+
+    @abstractmethod
+    def validate_input(self):
+        raise NotImplementedError
+
+
+class MAPFOutput(ABC):
+    def __init__(self, paths: list[Path], cost, cpu_time):
+        self.paths = paths  # paths[0] will be the path for agent 0
+        self.cost = cost
+        self.cpu_time = cpu_time
 
 
 class MAPFAlgo(ABC):
-    def __init__(self, mapf_input: MAPFInput):
-        # M.a.p.f input must include: map, starts_list, goals_list, low_level_search algo
-        self.map_instance = mapf_input.map_instance
-        self.starts_list = mapf_input.starts_list
-        self.goals_list = mapf_input.goals_list
-        self.num_of_agents = len(mapf_input.starts_list)
-        self.low_level_search = mapf_input.low_level_search
-        self.lls_input = mapf_input.lls_input
-
-        self.start_time = 0
-        self.num_of_generated = 0
-        self.num_of_expanded = 0
-        self.CPU_time = 0
+    def __init__(self, attributes):
+        pass
 
     @abstractmethod
-    def solve(self) -> MAPFOutput:
+    def solve(self, mapf_input: MAPFInput) -> MAPFOutput:
         raise NotImplementedError
 

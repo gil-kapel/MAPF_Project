@@ -1,1 +1,1 @@
-from exceptions import NoSolution
+from exceptions import NoSolution, WrongInput
