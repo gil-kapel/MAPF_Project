@@ -1,12 +1,12 @@
 import time as timer
 from abc import ABC
 import heapq
-from Abstract_objects import MAPFAlgo, MAPFOutput, MAPFInput, LLSInput
-from Concrete_objects import WayPoint, MapfInstance, Path, Constraint, Collision
-
+import random
 import copy
 import numpy as np
-from MAPF_exceptions import NoSolution
+from Abstract_objects import MAPFAlgo, MAPFOutput, MAPFInput
+from Concrete_objects import MapfInstance, Path, Constraint, Collision, WayPoint
+from MAPF_exceptions import NoSolution, WrongInput
 
 
 class HighLevelNode(ABC):
@@ -23,28 +23,28 @@ class HighLevelNode(ABC):
 
     def sum_of_costs_calc(self):
         for path in self.paths:
-            self.sum_of_costs += len(path.path) - 1
+            self.sum_of_costs += len(path) - 1
 
     def make_span_calc(self):
         max_time = -np.inf
         for path in self.paths:
-            if len(path.path) > max_time:
-                max_time = len(path.path)
+            if len(path) > max_time:
+                max_time = len(path)
         self.make_span = max_time
 
     def make_constraints(self, disjoint=False):
         self.detect_collisions()
         if disjoint:
-            self.constraints = self.disjoint_splitting(self.collisions)
+            self.constraints = self.disjoint_splitting(self.collisions[0])
         else:
-            self.constraints = self.standard_splitting(self.collisions)
+            self.constraints = self.standard_splitting(self.collisions[0])
 
     def detect_collisions(self):
         for i, path1 in enumerate(self.paths):
             for j, path2 in enumerate(self.paths):
                 if path1 == path2:
                     continue
-                res = self.detect_collision(path1, path2)
+                res = self.detect_collision(i, path1, j, path2)
                 if res is None:
                     continue
                 collision = Collision(i, j, res.time_step, res.position, res.sec_vertex_pos)
@@ -52,14 +52,14 @@ class HighLevelNode(ABC):
                     self.collisions.append(collision)
         return self.collisions
 
-    def detect_collision(self, path1: Path, path2: Path):
+    def detect_collision(self, agent1: int, path1: Path, agent2: int, path2: Path):
         for t, loc in enumerate(path1.path):
             if self.get_location(path1.path, t) == self.get_location(path2.path, t):
-                collision = Collision(path1.agent, path2.agent, t, self.get_location(path1.path, t))
+                collision = Collision(agent1, agent2, t, self.get_location(path1.path, t))
                 return collision
             elif self.get_location(path1.path, t) == self.get_location(path2.path, t + 1) and \
                     self.get_location(path1.path, t + 1) == self.get_location(path2.path, t):
-                collision = Collision(path1.agent, path2.agent, t + 1, self.get_location(path1.path, t),
+                collision = Collision(agent1, agent2, t + 1, self.get_location(path1.path, t),
                                       self.get_location(path1.path, t + 1))
                 return collision
         return None
@@ -85,40 +85,90 @@ class HighLevelNode(ABC):
         return False
 
     @staticmethod
-    def standard_splitting(collision):
-        location = collision['loc']
-        time_step = collision['timestep']
-        a1 = collision['a1']
-        a2 = collision['a2']
+    def standard_splitting(collision: Collision):
+        location = collision.position
+        time_step = collision.time_step
+        a1 = collision.agent1
+        a2 = collision.agent2
         constraints = []
-        if len(location) == 1:  # vertex constraint
-            constraints.append({'agent': a1, 'loc': location, 'timestep': time_step})
-            constraints.append({'agent': a2, 'loc': location, 'timestep': time_step})
+        if not collision.is_edge_collision:  # vertex constraint
+            constraints.append(Constraint(a1, time_step, location))
+            constraints.append(Constraint(a2, time_step, location))
         else:  # edge constraint
-            constraints.append({'agent': a1, 'loc': location, 'timestep': time_step})
-            constraints.append({'agent': a2, 'loc': [location[1], location[0]], 'timestep': time_step})
+            constraints.append(Constraint(a1, time_step, location, collision.sec_vertex_pos))
+            constraints.append(Constraint(a2, time_step, collision.sec_vertex_pos, location))
         return constraints
 
     @staticmethod
-    def disjoint_splitting(collision):
-        # TODO disjoint splitting cbs
-        constraints = []
-        return constraints
+    def disjoint_splitting(collision: Collision):
+        return []
+        # disjoint_constraints = []
+        # positive_agent = random.randint(0, 1)
+        # if positive_agent == 0:
+        #     agent1 = collision.agent1
+        #     agent2 = collision.agent2
+        # else:
+        #     agent2 = collision.agent1
+        #     agent1 = collision.agent2
+        # loc = collision.position
+        # if not collision.is_edge_collision: # TODO got to a goal
+        #     collision1 = Collision(agent1, agent2, collision.time_step, loc, True)
+        #     collision2 = {'agent': , 'loc': loc, 'time_step': collision['time_step'], 'positive': False}
+        # elif len(loc) == 1 and collision['goal'] == 1:
+        #     collision1 = {'agent': collision['a1'], 'loc': loc, 'time_step': collision['time_step'], 'positive': False}
+        #     collision2 = {'agent': collision['a2'], 'loc': loc, 'time_step': collision['time_step'], 'positive': True}
+        # else:
+        #     collision1 = {'agent': agent1, 'loc': [loc[0], loc[1]], 'time_step': collision['time_step'], 'positive': True}
+        #     collision2 = {'agent': agent2, 'loc': [loc[1], loc[0]], 'time_step': collision['time_step'],
+        #                   'positive': False}
+        # disjoint_constraints.append(collision1)
+        # disjoint_constraints.append(collision2)
+        # print(disjoint_constraints)
+        # return disjoint_constraints
 
 
 class CBSInput(MAPFInput):
-    def __init__(self, map_instance: MapfInstance, starts_list, goals_list):
+    def __init__(self, map_instance: MapfInstance, starts_list: list[WayPoint], goals_list: list[(WayPoint, int)]):
         super().__init__(map_instance, starts_list, goals_list)
+        self.num_of_agents = len(starts_list)
 
     def validate_input(self):
-        pass
-        # TODO
+        if self.num_of_agents < 0 or self.are_agents_in_legal_places():
+            raise WrongInput()
+        if self.start_points_collisions() or self.goal_points_collision():
+            raise NoSolution()
+
+    def are_agents_in_legal_places(self):
+        for point in self.starts_list:
+            try:
+                if self.map_instance.map[point.position.x][point.position.y] == self.map_instance.obstacles_inst:
+                    return False
+            except ValueError:
+                return False
+        for point in self.goals_list:
+            try:
+                if self.map_instance.map[point.position.x][point.position.y] == self.map_instance.obstacles_inst:
+                    return False
+            except ValueError:
+                return False
+        return True
+
+    def start_points_collisions(self):
+        if len(self.starts_list) != len(set(self.starts_list)):
+            return True
+        else:
+            return False
+
+    def goal_points_collision(self):
+        if len(self.goals_list) != len(set(self.goals_list)):
+            return True
+        else:
+            return False
 
 
 class CBSSolver(MAPFAlgo):
     """CBS high-level search."""
     def __init__(self, attributes):
-        # M.a.p.f input must include: map, starts_list, goals_list, low_level_search algo
         self.low_level_search = attributes.low_level_search
         self.open_list = []
         self.start_time = 0
@@ -136,15 +186,13 @@ class CBSSolver(MAPFAlgo):
         self.num_of_expanded += 1
         return node
 
-    def solve(self) -> MAPFOutput:
+    def solve(self, cbs_input: CBSInput) -> MAPFOutput:
+        cbs_input.validate_input()
         self.start_time = timer.time()
         root = HighLevelNode([], [])
-        for i in range(self.num_of_agents):  # Find initial path for each agent
-            # TODO 2: think how to make the lls abstract - here the LLS Factory will choose the algo (A*..)
-            #  and the next line needs to do the job
-            # LLS Input needs to be according to the low level search
-            lls = self.low_level_search.search(LLSInput(self.map_instance, self.starts_list[i], self.goals_list[i], i,
-                                                        root.constraints))
+        for i in range(cbs_input.num_of_agents):  # Find initial path for each agent
+            lls = self.low_level_search.search(cbs_input.map_instance, cbs_input.starts_list[i],
+                                               cbs_input.goals_list[i], i, root.constraints)
             path = lls.search()
             if path is None:
                 raise NoSolution()
@@ -163,8 +211,8 @@ class CBSSolver(MAPFAlgo):
                 new_constraints.append(constraint)
                 new_node = HighLevelNode(new_constraints, copy.deepcopy(smallest_node.paths))
                 agent = constraint.agent
-                path = self.low_level_search(self.map_instance, self.starts_list[agent], self.goals_list[agent],
-                                             agent, new_constraints).search()
+                path = self.low_level_search(cbs_input.map_instance, cbs_input.starts_list[agent],
+                                             cbs_input.goals_list[agent], agent, new_constraints).search()
                 if path is not None:
                     new_node.paths[agent] = path
                     new_node.detect_collisions()
