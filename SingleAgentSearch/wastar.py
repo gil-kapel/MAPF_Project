@@ -1,26 +1,27 @@
 from abc import ABC
-from collections import defaultdict
 import numpy as np
 from heapq import heappush, heappop
-from Abstract_objects import LowLevelSearch, LLSInput
-from Concrete_objects import WayPoint, MapfInstance, Constraint, Path
+from typing import List
+from Abstract_objects import LowLevelSearch, LLSInput, WayPoint, MapfInstance, Path
+from Concrete_objects import Constraint
+from MAPF_exceptions import WrongInput
 
 
 class AStarInput(LLSInput):
-    def __init__(self, map_instance: MapfInstance, start_loc: WayPoint, goal_loc: WayPoint, agent: int,
-                 constraints: list[Constraint], w=1):
-        super(AStarInput, self).__init__(map_instance, start_loc, goal_loc, agent)
+    def __init__(self, map_instance: MapfInstance, start_loc: WayPoint, goal_loc: WayPoint, goal_time: int, agent: int,
+                 constraints: List[Constraint], heuristics):
+        super(AStarInput, self).__init__(map_instance, start_loc, goal_loc, goal_time, agent)
         self.constraints = constraints
-        self.w = w
+        self.heuristics = heuristics
 
 
 class AStarNode(ABC):
-    def __init__(self, waypoint: WayPoint, time_step: int, g_score=np.inf, h_score=np.inf):
+    def __init__(self, position, time_step: int, g_score=np.inf, h_score=np.inf, prev_state=None):
         self.h_score = h_score
         self.g_score = g_score
-        self.waypoint = waypoint
+        self.position = position
         self.time_step = time_step
-        self.prev_state = None
+        self.prev_state = prev_state
         self.closed = False
         self.opened = False
 
@@ -28,14 +29,16 @@ class AStarNode(ABC):
         return self.h_score + self.g_score < other.h_score + other.g_score
 
     def __eq__(self, other):
-        return self.waypoint == other.waypoint and self.time_step == other.time_step
+        return self.position == other.position and self.time_step == other.time_step
 
 
 class AStar(LowLevelSearch):
-    def __init__(self):
-        super().__init__(True)
+    def __init__(self, w=0.5):
+        super().__init__(w)
+        self.w = w
         self.constraints = None
         self.goal = None
+        self.goal_time = None
         self.map_instance = None
         self.agent = None
         self.start_loc = None
@@ -44,89 +47,70 @@ class AStar(LowLevelSearch):
     def search(self, a_star_input: AStarInput):
         self.constraints = a_star_input.constraints
         self.goal = a_star_input.goal_loc
+        self.goal_time = a_star_input.goal_time
         self.start_loc = a_star_input.start_loc
         self.agent = a_star_input.agent
         self.map_instance = a_star_input.map_instance.map
         open_list = []
         closed_list = dict()
-        h_value = self.compute_heuristics()[self.start_loc]
+        root_loc = self.start_loc.position.x, self.start_loc.position.y
+        try:
+            h_value = a_star_input.heuristics[root_loc]
+        except KeyError:
+            raise WrongInput('\n\n---at least one of the agents can\'t arrive to his goal location---\n\n')
         c_table = self.build_constraint_table()
-        root = {'loc': self.start_loc, 'g_val': 0, 'h_val': h_value, 'parent': None}
+        root = AStarNode(root_loc, 0, 0, h_value, None)
         self.push_node(open_list, root)
-        closed_list[(root['loc'])] = root
+        closed_list[(root_loc, root.time_step)] = root
         while len(open_list) > 0:
-            curr = self.pop_node(open_list)
-            #############################
-            # Task 1.4: Adjust the goal test condition to handle goal constraints
-            if curr['loc'] == self.goal:
-                if self.is_future_constraints_on_goal(curr['time_step'], c_table):
-                    continue
+            curr = self.__pop_node(open_list)
+            if curr.position == (self.goal.position.x, self.goal.position.y) and \
+                    not self.is_future_constraints_on_goal(curr.time_step, c_table):
                 return self.get_path(curr)
             for direction in range(5):
-                child_loc = self.move(curr['loc'], direction)
+                child_loc = self.move(curr.position[0], curr.position[1], direction)
                 if self.is_location_out_of_boundaries(child_loc) or \
                         self.map_instance[child_loc[0]][child_loc[1]] or \
-                        self.is_constrained(curr['loc'], child_loc, curr['time_step'] + 1, c_table):
+                        self.is_constrained(curr.position, child_loc, curr.time_step + 1, c_table):
                     # prone if found a constraint
                     continue
-                child = {'loc': child_loc,
-                         'g_val': curr['g_val'] + 1,
-                         'h_val': self.compute_heuristics()[child_loc],
-                         'parent': curr,
-                         'time_step': curr['time_step'] + 1}
-                if (child['loc'], child['time_step']) in closed_list:
-                    existing_node = closed_list[(child['loc'], child['time_step'])]
+                child = AStarNode(child_loc, curr.time_step + 1, curr.g_score + 1,
+                                  a_star_input.heuristics[child_loc], curr)
+                child_loc = child.position[0], child.position[1]
+                if (child_loc, child.time_step) in closed_list:
+                    existing_node = closed_list[(child_loc, child.time_step)]
                     if self.compare_nodes(child, existing_node):
-                        closed_list[(child['loc']), child['time_step']] = child
+                        closed_list[(child_loc, child.time_step)] = child
                         self.push_node(open_list, child)
                 else:
-                    closed_list[(child['loc']), child['time_step']] = child
+                    closed_list[(child_loc, child.time_step)] = child
                     self.push_node(open_list, child)
-            return None  # Failed to find solutions
+        return None  # Failed to find solutions
 
-    # Heuristic function for estimations
-    def compute_heuristics(self):
-        # Use Dijkstra to build a shortest-path tree rooted at the goal location
-        open_list = []
-        closed_list = dict()
-        goal = self.goal
-        my_map = self.map_instance
-        root = {'loc': goal, 'cost': 0}
-        heappush(open_list, (root['cost'], goal, root))
-        closed_list[goal] = root
-        while len(open_list) > 0:
-            (cost, loc, curr) = heappop(open_list)
-            for direction in range(4):
-                child_loc = self.move(loc, direction)
-                child_cost = cost + 1
-                if child_loc[0] < 0 or child_loc[0] >= len(my_map) \
-                        or child_loc[1] < 0 or child_loc[1] >= len(my_map[0]):
-                    continue
-                if my_map[child_loc[0]][child_loc[1]]:
-                    continue
-                child = {'loc': child_loc, 'cost': child_cost}
-                if child_loc in closed_list:
-                    existing_node = closed_list[child_loc]
-                    if existing_node['cost'] > child_cost:
-                        closed_list[child_loc] = child
-                        heappush(open_list, (child_cost, child_loc, child))
-                else:
-                    closed_list[child_loc] = child
-                    heappush(open_list, (child_cost, child_loc, child))
-        # build the heuristics table
-        h_values = dict()
-        for loc, node in closed_list.items():
-            h_values[loc] = node['cost']
-        return h_values
+    def input_factory(self, map_instance: MapfInstance, start_loc: WayPoint, goal_loc: WayPoint, goal_time: int,
+                      agent: int, constraints: List[Constraint], heuristics):
+        return AStarInput(map_instance, start_loc, goal_loc, goal_time, agent, constraints, heuristics)
 
     @staticmethod
-    def move(loc, direction):
-        directions = [(0, -1), (1, 0), (0, 1), (-1, 0), (0, 0)]
-        return loc[0] + directions[direction][0], loc[1] + directions[direction][1]
+    def l2(curr_point, goal_point):
+        return np.sqrt((int(curr_point[0]) - int(goal_point[0])) ** 2 + (int(curr_point[1]) - int(goal_point[1])) ** 2)
 
-    # Reached goal state and no constraints ahead
+    # Heuristic function for estimations
+    def compute_heuristics(self, curr_point):
+        return self.l2(curr_point, (self.goal.position.x, self.goal.position.y))
+
+    # 5 options for an agent movement from his current location, each vertical direction and stay at place
+    # only two dimensions (x, y)
+    @staticmethod
+    def move(x, y, direction) -> (int, int):
+        directions = [(0, -1), (1, 0), (0, 1), (-1, 0), (0, 0)]
+        x += directions[direction][0]
+        y += directions[direction][1]
+        return x, y
+
+    # Reached goal state
     def is_goal(self, state: AStarNode) -> bool:
-        return state.waypoint == self.goal and state.time_step > self.goal
+        return state.position == self.goal.position and self.goal_time == 0 or state.time_step <= self.goal_time
 
     # Reconstruct path
     @staticmethod
@@ -134,35 +118,49 @@ class AStar(LowLevelSearch):
         current = state
         path = []
         while current:
-            path.append(current.waypoint)
+            path.append(WayPoint(current.position[0], current.position[1]))
             current = current.prev_state
+        path.reverse()
         return Path(path)
 
     # make a constraint table as a dictionary from the AStar map
     def build_constraint_table(self) -> dict:
-        time_step_dict = defaultdict(list)
+        time_step_dict = {}
         for constraint in self.constraints:
             if constraint.agent == self.agent:
-                time_step_dict[constraint.time_step].append(constraint.position)
-        return dict(time_step_dict)
+                time = constraint.time_step
+                if time in time_step_dict.keys():
+                    time_step_dict[time].append(constraint)
+                else:
+                    time_step_dict[time] = [constraint]
+        return time_step_dict
+
+    def push_node(self, node_list, node: AStarNode):
+        heappush(node_list, (self.w * node.g_score + (1 - self.w) * node.h_score, node.h_score, node.position, node))
 
     @staticmethod
-    def push_node(open_list, node):
-        heappush(open_list, (node['g_val'] + node['h_val'], node['h_val'], node['loc'], node))
-
-    @staticmethod
-    def pop_node(open_list):
-        _, _, _, curr = heappop(open_list)
+    def __pop_node(node_list) -> AStarNode:
+        _, _, _, curr = heappop(node_list)
         return curr
 
-    @staticmethod
-    def compare_nodes(n1, n2):
+    def compare_nodes(self, n1: AStarNode, n2: AStarNode):
         """Return true is n1 is better than n2."""
-        return n1['g_val'] + n1['h_val'] < n2['g_val'] + n2['h_val']
+        return self.w * n1.g_score + (1 - self.w) * n1.h_score < self.w * n2.g_score + (1 - self.w) * n2.h_score
 
     def is_future_constraints_on_goal(self, time_step, constraint_table):
         for key in constraint_table.keys():
-            if key > time_step and [self.goal] in constraint_table[key]:
+            if key > time_step:
+                for constraint in constraint_table[key]:
+                    if constraint.is_edge_constraint:
+                        if constraint.position == self.goal.position and constraint.sec_vertex == self.goal.position:
+                            return True
+                    elif constraint.position == self.goal.position:
+                        return True
+        return False
+
+    def is_goal_in_constraint_table(self, constraints):
+        for constraint in constraints:
+            if self.goal.position == constraint.position:
                 return True
         return False
 
@@ -170,12 +168,15 @@ class AStar(LowLevelSearch):
     def is_constrained(curr_loc, next_loc, next_time, constraint_table: dict):
         if next_time not in constraint_table:
             return False
-        for location in constraint_table[next_time]:
-            if len(location) == 2:
-                if location[0] == curr_loc and location[1] == next_loc or \
-                        location[0] == next_loc and location[1] == curr_loc:
+        constraints = constraint_table[next_time]
+        for constraint in constraints:
+            if constraint.is_edge_constraint:
+                first_vertex = constraint.position.x, constraint.position.y
+                second_vertex = constraint.sec_vertex.x, constraint.sec_vertex.y
+                if first_vertex == curr_loc and second_vertex == next_loc or \
+                        first_vertex == next_loc and second_vertex == curr_loc:
                     return True
-            elif location[0] == next_loc:
+            elif (constraint.position.x, constraint.position.y) == next_loc:
                 return True
         return False
 

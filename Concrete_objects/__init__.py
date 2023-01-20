@@ -1,6 +1,4 @@
-from .map import MapfInstance
-from .path import Path
-from .position import Position
-from .waypoint import WayPoint
+from .concrete_waypoints import SevenDimWayPoint, TimedWayPoint
 from .collision import Collision
 from .constraint import Constraint
+from .file_map_instance import FileMapInstance

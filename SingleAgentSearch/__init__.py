@@ -1,1 +1,1 @@
-from single_agent_planner import dijkstra
+from .wastar import AStar, AStarInput
